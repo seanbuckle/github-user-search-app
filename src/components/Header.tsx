@@ -3,10 +3,7 @@ function Header() {
     <>
       <header>
         <h1>devfinder</h1>
-        <div>
-          <button>Light</button>
-          <button>Dark</button>
-        </div>
+        <button>Light</button>
       </header>
     </>
   );
