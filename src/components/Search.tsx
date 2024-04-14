@@ -3,7 +3,7 @@ function Search() {
     <>
       <form action="">
         <input type="text" placeholder="Search GitHub username..." />
-        <label></label>
+        <label id="error-msg"></label>
         <button>Search</button>
       </form>
     </>
