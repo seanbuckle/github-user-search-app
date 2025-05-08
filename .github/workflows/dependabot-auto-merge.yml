@@ -75,7 +75,7 @@ jobs:
 
       - name: Enable Auto-Merge
         if: steps.should-merge.outputs.merge == 'true'
-        uses: github/auto-merge-action@v5
+        uses: github/auto-merge-action@v1
         with:
           merge_method: squash # or merge, or rebase
           delete_branch: true # Delete the branch after merging (optional)
