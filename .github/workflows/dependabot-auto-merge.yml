@@ -36,7 +36,7 @@ jobs:
         run: |
           SAFE_PATHS="
             package.json
-            package-lock.json           
+            package-lock.json
           "
           CHANGED_FILES="${{ steps.changed-files.outputs.CHANGED_FILES }}"
           SAFE=true
@@ -53,8 +53,8 @@ jobs:
               SAFE_PATH_NAME=$(basename "$SAFE_PATH") #get filename
 
               if [[ "$(echo "$FILE" | tr '[:upper:]' '[:lower:]')" == "$(echo "$SAFE_PATH" | tr '[:upper:]' '[:lower:]')" ]] || [[ "$(echo "$FILE_PATH" | tr '[:upper:]' '[:lower:]')" == "$(echo "$SAFE_PATH_DIR" | tr '[:upper:]' '[:lower:]')" && "$(echo "$SAFE_PATH_NAME" | tr '[:upper:]' '[:lower:]')" == "$(echo "$FILE_NAME" | tr '[:upper:]' '[:lower:]')" ]]; then
-                  is_safe=true
-                  break
+                is_safe=true
+                break
               fi
             done
             if ! $is_safe; then
@@ -75,9 +75,25 @@ jobs:
 
       - name: Enable Auto-Merge
         if: steps.should-merge.outputs.merge == 'true'
-        uses: github/auto-merge-action@v1
+        uses: actions/github-script@v7
         with:
-          merge_method: squash # or merge, or rebase
-          delete_branch: true # Delete the branch after merging (optional)
-          # Optional:  Add a commit message prefix.  Useful for filtering.
-          commit_message_prefix: "chore(deps): "
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            try {
+              await github.rest.pulls.merge({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: context.payload.pull_request.number,
+                merge_method: 'merge', // or 'merge', or 'rebase'
+                commit_message: 'chore(deps): ' + context.payload.pull_request.title // Optional commit message
+              });
+              console.log('Successfully merged the pull request.');
+              await github.rest.git.deleteRef({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                ref: `heads/${context.payload.pull_request.head.ref}`
+              });
+              console.log('Successfully deleted the branch.');
+            } catch (error) {
+              console.error('Failed to merge the pull request:', error);
+            }
