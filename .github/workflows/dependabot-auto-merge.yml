@@ -1,99 +1,23 @@
-name: Dependabot Auto-Merge
-
-permissions:
-  contents: read
-  pull-requests: write
+name: Auto-merge Dependabot PRs
 
 on:
-  pull_request:
-    # Only run this workflow on pull requests from Dependabot
-    branches:
-      - main
-    paths:
-      - "package.json"  # Example: Only trigger on changes to package.json (Node.js)
+  pull_request_target:
+    types:
+      - opened
+      - synchronize
+      - reopened
+
+permissions:
+  pull-requests: write
+  contents: read
+
 jobs:
-  dependabot:
-    # Use a GitHub Actions runner
+  auto-merge:
+    if: github.actor == 'dependabot[bot]'
     runs-on: ubuntu-latest
-    if: github.actor == 'dependabot[bot]' # IMPORTANT: Only run for Dependabot PRs
-
     steps:
-      - name: Checkout code
-        uses: actions/checkout@v4
-        with:
-          fetch-depth: 2 # Needed for git diff
-
-      - name: Get changed files
-        id: changed-files
+      - name: Enable auto-merge
         run: |
-          # Get the list of changed files.  This is more robust.
-          CHANGED_FILES=$(git diff --name-only HEAD^ HEAD)
-          echo "CHANGED_FILES=$CHANGED_FILES" >> $GITHUB_OUTPUT
-          echo "CHANGED_FILES_LIST=$CHANGED_FILES" >> $GITHUB_STATE # For debugging
-
-      - name: Determine if the PR is safe to merge
-        id: should-merge
-        run: |
-          SAFE_PATHS="
-            package.json
-            package-lock.json
-          "
-          CHANGED_FILES="${{ steps.changed-files.outputs.CHANGED_FILES }}"
-          SAFE=true
-          echo "Changed files: $CHANGED_FILES"
-          echo "Safe paths: $SAFE_PATHS"
-
-          for FILE in $CHANGED_FILES; do
-            FILE_PATH=$(echo "$FILE" | sed 's#/[^/]*$##') # Get directory
-            FILE_NAME=$(basename "$FILE") #get filename
-            echo "Checking file: $FILE"
-            is_safe=false
-            for SAFE_PATH in $SAFE_PATHS; do
-              SAFE_PATH_DIR=$(echo "$SAFE_PATH" | sed 's#/[^/]*$##') # Get directory
-              SAFE_PATH_NAME=$(basename "$SAFE_PATH") #get filename
-
-              if [[ "$(echo "$FILE" | tr '[:upper:]' '[:lower:]')" == "$(echo "$SAFE_PATH" | tr '[:upper:]' '[:lower:]')" ]] || [[ "$(echo "$FILE_PATH" | tr '[:upper:]' '[:lower:]')" == "$(echo "$SAFE_PATH_DIR" | tr '[:upper:]' '[:lower:]')" && "$(echo "$SAFE_PATH_NAME" | tr '[:upper:]' '[:lower:]')" == "$(echo "$FILE_NAME" | tr '[:upper:]' '[:lower:]')" ]]; then
-                is_safe=true
-                break
-              fi
-            done
-            if ! $is_safe; then
-              SAFE=false
-              echo "File '$FILE' is not in the safe list."
-              break
-            fi
-          done
-          if $SAFE; then
-            echo "All changed files are in the safe list.  Setting merge=true"
-            echo "merge=true" >> $GITHUB_OUTPUT
-            echo "MERGE_STATUS=true" >> $GITHUB_STATE #for debugging
-          else
-            echo "At least one changed file is not in the safe list.  Setting merge=false"
-            echo "merge=false" >> $GITHUB_OUTPUT
-            echo "MERGE_STATUS=false" >> $GITHUB_STATE #for debugging
-          fi
-
-      - name: Enable Auto-Merge
-        if: steps.should-merge.outputs.merge == 'true'
-        uses: actions/github-script@v7
-        with:
-          github-token: ${{ secrets.GITHUB_TOKEN }}
-          script: |
-            try {
-              await github.rest.pulls.merge({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                pull_number: context.payload.pull_request.number,
-                merge_method: 'merge', // or 'merge', or 'rebase'
-                commit_message: 'chore(deps): ' + context.payload.pull_request.title // Optional commit message
-              });
-              console.log('Successfully merged the pull request.');
-              await github.rest.git.deleteRef({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                ref: `heads/${context.payload.pull_request.head.ref}`
-              });
-              console.log('Successfully deleted the branch.');
-            } catch (error) {
-              console.error('Failed to merge the pull request:', error);
-            }
+          gh pr merge ${{ github.event.pull_request.number }} --auto --squash
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
